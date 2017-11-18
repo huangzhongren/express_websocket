@@ -1,0 +1,13 @@
+var monogoose = require('mongoose');
+
+var debenSchema = new monogoose.Schema({
+    client:String,
+    dt:Date,
+    tm:String,
+    notes:String,
+    bwicitems:[]
+},{collection:'debentures'});
+
+var debenModel = monogoose.model('Debenmodel',debenSchema);
+
+module.exports = debenModel;

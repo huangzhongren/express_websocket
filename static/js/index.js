@@ -38,6 +38,93 @@ $(function(){
         ws.send(JSON.stringify(request));
     }
 
+
+
+    $("#notification").kendoNotification({
+        width: "100%",
+        position: {
+            top: 0,
+            left: 0
+        }
+    });
+    $("#grid").kendoGrid({
+        autoBind: false,
+        editable: true,
+        sortable: true,
+        columns: [
+            { field: "client", title: "client" },
+            { field: "notes", title: "notes" },
+            { field: "dt", title: "dt" },
+            { field: "tm", title: "tm" },
+            { command:'destroy',width:100}
+        ],
+        toolbar: ["create","destroy","save","cancel"],
+        detailInit: detailInit,
+        dataSource: {
+            // Handle the push event to display notifications when push updates arrive
+            //当数据源接收到一个推送通知或者pushCreate、pushUpdate、pushDestroy被调用时触发
+            push: function(e) {
+                var notification = $("#notification").data("kendoNotification");
+                notification.success(e.type);
+            },
+            //每改变一次页面数据都会触发transport.update
+            autoSync: true,
+            pageSize: 10,
+            //暂时还不明白schema
+            schema: {
+                model: {
+                    id: "_id",//必须对应数据源中数据对应的id,否则每次更改数据源只触发transport.create，很玄学！
+                    fields: {
+                        "_id": { editable: false, nullable: true },
+                        "client": { type: "string"},
+                        "notes": { type: "string" },
+                        "dt": { type: "string" },
+                        "tm": { type: "time" }
+                    }
+                },
+            },
+            transport: {
+                push: function(options) {
+                    //服务器推送数据时，监听message事件
+                    ws.addEventListener("message", function(e) {
+                        var result = JSON.parse(e.data);
+                        //检查推送类型，执行响应的回调函数
+                        if (result.type === "push-update") {
+                            options.pushUpdate(result);
+                        } else if (result.type === "push-destroy") {
+                            options.pushDestroy(result);
+                        } else if (result.type === "push-create") {
+                            options.pushCreate(result);
+                        }
+                    });
+                },
+                //向后台发送read请求
+                read: function(options) {
+                    var request = { type: "read" };
+                    send(ws, request, function(result) {
+                        options.success(result);
+                    });
+                },
+                //向后台发送update请求
+                update: function(options) {
+                    var request = { type: "update", data: [options.data] };
+                    send(ws, request, options.success);
+                },
+                //向后台发送create请求
+                create: function(options) {
+                    var request = { type: "create", data: [options.data] };
+                    send(ws, request, options.success);
+                },
+                //向后台发送destroy请求
+                destroy: function(options) {
+                    var request = { type: "destroy", data: [options.data] };
+                    send(ws, request, options.success);
+                }
+
+            }
+        },
+        pageable: true,
+    });
     //二级表格初始化
     function detailInit(e) {
         $("<div/>").appendTo(e.detailCell).kendoGrid({
@@ -135,86 +222,4 @@ $(function(){
             }
         });
     }
-
-    $("#notification").kendoNotification({
-        width: "100%",
-        position: {
-            top: 0,
-            left: 0
-        }
-    });
-    $("#grid").kendoGrid({
-        autoBind: false,
-        editable: true,
-        sortable: true,
-        columns: [
-            { field: "client", title: "client" },
-            { field: "notes", title: "notes" },
-            { field: "dt", title: "dt" },
-            { field: "tm", title: "tm" },
-            { command:'destroy',width:100}
-        ],
-        toolbar: ["create","destroy","save","cancel"],
-        detailInit: detailInit,
-        dataSource: {
-            // Handle the push event to display notifications when push updates arrive
-            //当数据源接收到一个推送通知或者pushCreate、pushUpdate、pushDestroy被调用时触发
-            push: function(e) {
-                var notification = $("#notification").data("kendoNotification");
-                notification.success(e.type);
-            },
-            autoSync: true,
-            pageSize: 10,
-            //暂时还不明白schema
-            schema: {
-                model: {
-                    id: "shareID",
-                    fields: {
-                        "shareID": { editable: false, nullable: true },
-                        "client": { type: "string",validation:{require:true} },
-                        "notes": { type: "string" },
-                        "dt": { type: "string" },
-                        "tm": { type: "time" }
-                    }
-                },
-            },
-            transport: {
-                push: function(options) {
-                    //服务器推送数据时，监听message事件
-                    ws.addEventListener("message", function(e) {
-                        var result = JSON.parse(e.data);
-                        //检查推送类型，执行响应的回调函数
-                        if (result.type === "push-update") {
-                            options.pushUpdate(result);
-                        } else if (result.type === "push-destroy") {
-                            options.pushDestroy(result);
-                        } else if (result.type === "push-create") {
-                            options.pushCreate(result);
-                        }
-                    });
-                },
-                read: function(options) {
-                    var request = { type: "read" };
-                    send(ws, request, function(result) {
-                        options.success(result);
-                    });
-                },
-                update: function(options) {
-                    var request = { type: "update", data: [options.data] };
-                    send(ws, request, options.success);
-                },
-                destroy: function(options) {
-                    console.log(options.data)
-                    var request = { type: "destroy", data: [options.data] };
-                    send(ws, request, options.success);
-                },
-                create: function(options) {
-                    var request = { type: "create", data: [options.data] };
-                    send(ws, request, options.success);
-                }
-            }
-        },
-        pageable: true,
-    });
-
 })

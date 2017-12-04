@@ -16,66 +16,109 @@ app.use('/',require('./routes'));
 const server = http.createServer(app);
 const wss = new webSocket.Server({server});
 var debenModel = require('./models/debenture');
+var subdebenModel = require('./models/subdebenture');
 
-
-function sendData(ws,msg){
+function sendData(ws,msg,query){
     var response = {};
-    debenModel.find().sort({'_id':-1}).then(function(rs){
-        //将从前台接受的数据id再次放入响应数据，作为前台判断的唯一标识
-        response.id = msg.id;
-        response.data = rs;
-        ws.send(JSON.stringify(response))
+    switch (msg.type) {
+        case 'read':
+            response.type = 'read';
+            break;
+        case 'update':
+            response.type = 'push-update';
+            break;
+        case 'create':
+            response.type = 'push-create';
+            break;
+        case 'destroy':
+            response.type = 'push-destroy';
+            break;
+    }
+    subdebenModel.find(query).then(function(rs){
+        if(rs){
+            response.id = msg.id;
+            response.data = rs;
+            ws.send(JSON.stringify(response))
+        }
+    })
+}
+function sendSuperData(ws,msg,query){
+    var response = {};
+    switch (msg.type) {
+        case 'read':
+            response.type = 'read';
+            break;
+        case 'update':
+            response.type = 'push-update';
+            break;
+        case 'create':
+            response.type = 'push-create';
+            break;
+        case 'destroy':
+            response.type = 'push-destroy';
+            break;
+    }
+    debenModel.find(query,{bwicitems:0}).then(function(rs){
+        if(rs){
+            response.id=msg.id;
+            response.data = rs;
+            ws.send(JSON.stringify(response))
+        }
     })
 }
 wss.on('connection', function connection(ws, req) {
     const location = url.parse(req.url, true);
     ws.on('message', function incoming(message) {
-        var response = {},
-            msg = JSON.parse(message);
-        switch (msg.type){
-            case 'read':
-                sendData(ws,msg);
-                break;
-            case 'update':
-                var _id = msg.data[0]['_id'];
-                // console.log(_id)
-                delete msg.data[0]['_id'];
-                delete msg.data[0]['__v'];
-
-                // console.log(msg.data[0])
-                // debenModel.findByIdAndUpdate(_id,msg.data[0]).then(function(rs){
-                //     console.log(rs)
-                // })
-
-                debenModel.findById(_id).then(function(rs){
-                    var data = Object.assign(rs,msg.data[0]);
-                    data.save().then(function(rs){
+        var msg = JSON.parse(message);
+        if(msg.super_id){//修改二级table
+            switch (msg.type){
+                case 'read':
+                    sendData(ws,msg,{debenture:msg.super_id});
+                    break;
+                case 'update':
+                    var _id = msg.data._id;
+                    subdebenModel.update({_id:_id},msg.data).then(function(rs){
                         if(rs){
-                            sendData(ws,msg)
+                            // console.log(rs)
+                            // sendData(ws,msg,{_id:_id});
                         }
                     })
-                })
-                break;
-            case 'create':
-                new debenModel(msg.data[0]).save().then(function(){
-                    sendData(ws,msg)
-                }).catch(function(err){
-                    console.log(err)
-                });
-                break;
-            case 'destroy':
-                debenModel.remove(msg.data[0],function(){
-                    sendData(ws,msg)
-                })
-                break;
+                    break;
+                case 'create':
+                    break;
+                case 'destroy':
+            }
+        }else{
+            switch (msg.type){
+                case 'read':
+                    sendSuperData(ws,msg,{});
+                    break;
+                case 'update':
+                    var _id = msg.data[0]['_id'];
+                    debenModel.update({_id:_id},msg.data[0]).then(function(rs){
+                        if(rs){
+                            sendSuperData(ws,msg,{_id:_id});
+                        }
+                    })
+                    break;
+                case 'create':
+                    // new debenModel(msg.data[0]).save().then(function(){
+                    //     sendSuperData(ws,msg)
+                    // }).catch(function(err){
+                    //     console.log(err)
+                    // });
+                    break;
+                case 'destroy':
+                    // debenModel.remove(msg.data[0],function(){
+                    //     sendSuperData(ws,msg)
+                    // })
+                    break;
+            }
         }
+
 
     })
 });
-
-
-
-
 mongoose.Promise = global.Promise;
 mongoose.connect('mongodb://localhost:27017/ws_deben_system',{useMongoClient:true},function(err){
     if(err){

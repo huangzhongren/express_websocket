@@ -31,7 +31,9 @@ $(function(){
             //Check if the response is for the current request
             if (result.id === request.id) {
                 ws.removeEventListener("message", arguments.callee);
-                callback(result.data);
+                if(result.type==='read'&&typeof callback === 'function'){
+                    callback(result.data);
+                }
             }
         });
         //发送数据到服务器
@@ -47,9 +49,8 @@ $(function(){
             left: 0
         }
     });
-    $("#grid").kendoGrid({
+    var element = $("#grid").kendoGrid({
         autoBind: false,
-        editable: true,
         sortable: true,
         columns: [
             { field: "client", title: "client" },
@@ -58,19 +59,21 @@ $(function(){
             { field: "tm", title: "tm" },
             { command:'destroy',width:100}
         ],
-        toolbar: ["create","destroy","save","cancel"],
+        toolbar: [{template:'<a href="\\#" class="k-button" onclick="cus_addRow()">add new record</a>'}
+            ,"destroy"
+            ,{template:'<a href="\\#" class="k-button" onclick="cus_saveChanges()">save changes</a>'}
+            ,"cancel"],
         detailInit: detailInit,
         dataSource: {
             // Handle the push event to display notifications when push updates arrive
             //当数据源接收到一个推送通知或者pushCreate、pushUpdate、pushDestroy被调用时触发
             push: function(e) {
+                console.log(e)
                 var notification = $("#notification").data("kendoNotification");
                 notification.success(e.type);
             },
             //每改变一次页面数据都会触发transport.update
-            autoSync: true,
             pageSize: 10,
-            //暂时还不明白schema
             schema: {
                 model: {
                     id: "_id",//必须对应数据源中数据对应的id,否则每次更改数据源只触发transport.create，很玄学！
@@ -125,20 +128,40 @@ $(function(){
         },
         pageable: true,
     });
+    var grid = $('#grid').data('kendoGrid');
+    $(element).on('dblclick','tbody>tr>td',function(){
+        grid.editCell($(this));
+    })
+    $(element).on('blur','tbody>tr>td',function(){
+        grid.closeCell($(this));
+    })
     //二级表格初始化
     function detailInit(e) {
-        $("<div/>").appendTo(e.detailCell).kendoGrid({
+        var parent_id = e.data.id;
+        e.detailRow.append('<span class="k-column-btn"></span>');
+        var detailele = $("<div/>").appendTo(e.detailCell).kendoGrid({
             dataSource: {
                 transport: {
                     read: function(options) {
-                        options.success(e.data.bwicitems.toJSON());
+                        var request = {type:"read",super_id:parent_id};
+                        send(ws,request,options.success)
                     }
                 },
                 pageSize: 5,
             },
+            save:function(e){
+                console.log(e.model.cap_charge)
+                console.log(e.model)
+                var request = {
+                    type:"update",
+                    data:e.model,
+                    super_id:parent_id
+                }
+                send(ws,request,function(){})
+            },
             resizable: true,
             scrollable: true,
-            sortable: true,
+            // toolbar:[{template:'<a href="\\#" class="k-button grid-column-menu fa fa-columns" onclick="cus_columnMenu()">manage columns</a>'},'create'],
             columns: [
                 { field: "client", title: "client" },
                 { field: "bond", title: "bond" },
@@ -221,5 +244,61 @@ $(function(){
                 })
             }
         });
+        $('#popup').kendoPopup({
+            anchor:e.detailRow.find('.k-column-btn'),
+            origin:"center right",
+            position:"-70px left",
+            animation:{
+                effects:"zoom in"
+            }
+        })
+        var popup = $('#popup').data('kendoPopup');
+        var detailGrid = $(detailele).data('kendoGrid');
+        var field_template = kendo.template($('#field-template').html());
+        $('#popup').html(field_template(detailGrid.columns))
+        e.detailRow.find('.k-column-btn').kendoButton({
+            icon:'columns',
+            click:function(){
+               popup.open()
+            }
+        })
+
+        // e.detailRow.find('.k-i-columns').kendoMenu({
+        //     dataSource:[{
+        //         items:menuDs
+        //     }],
+        //     openOnClick: true,
+        //     closeOnClick: false,
+        //     open: function () {
+        //         var selector;
+        //         // deselect hidden columns
+        //         $.each(detailGrid.columns, function () {
+        //             console.log(this)
+        //             if (this.hidden) {
+        //                 selector = "input[data-field='" + this.field + "']";
+        //                 $(selector).prop("checked", false);
+        //             }
+        //         });
+        //     },
+        //     select: function (e) {
+        //         // ignore click on top-level menu button
+        //         if ($(e.item).parent().filter("div").length) return;
+        //
+        //         var input = $(e.item).find("input.check");
+        //         var field = $(input).data("field");
+        //         if ($(input).is(":checked")) {
+        //             detailGrid.showColumn(field);
+        //         } else {
+        //             detailGrid.hideColumn(field);
+        //         }
+        //     }
+        // })
+    }
+
+    window.cus_addRow = function(){
+        grid.addRow()
+    }
+    window.cus_saveChanges = function(){
+        grid.saveChanges()
     }
 })

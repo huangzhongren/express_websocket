@@ -5,7 +5,6 @@ var debenSchema = new monogoose.Schema({
     dt:Date,
     tm:String,
     notes:String,
-    bwicitems:[]
 },{collection:'debentures'});
 
 var debenModel = monogoose.model('Debenmodel',debenSchema);

@@ -1,68 +1,19 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Document</title>
-    <link href="lib/content/shared/styles/examples-offline.css" rel="stylesheet">
-    <link href="lib/styles/kendo.common.min.css" rel="stylesheet">
-    <link href="lib/styles/kendo.rtl.min.css" rel="stylesheet">
-    <link href="lib/styles/kendo.default.min.css" rel="stylesheet">
-    <link href="lib/styles/kendo.default.mobile.min.css" rel="stylesheet">
-    <script src="https://code.jquery.com/jquery-1.12.3.min.js"></script>
-    <script src="lib/js/jszip.min.js"></script>
-    <script src="lib/js/kendo.all.min.js"></script>
-    <script type="text/javascript" src="./js/index.js"></script>
-    <style>
-        .k-menu {
-            color:red;
-        }
-        .k-menu .k-state-hover{
-            background-color: transparent;
-        }
-        .k-menu .k-state-hover>.k-link {
-            background-color:transparent!important;
-            /*background-image: none!important;*/
-            color:red
-        }
-        #popup ul {
-            width: 120px;
-            height: 500px;
-            overflow-y: auto;
-            background: #fff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-        }
-        #popup ul>li {
-            -ms-text-overflow: ellipsis;
-            text-overflow: ellipsis;
-            white-space:nowrap;
-            overflow:hidden;
-        }
-        .k-column-btn {
-            position: absolute;
-            left:5px;
-            top:36px;
-        }
-    </style>
-</head>
+<link href="css/index.css" rel="stylesheet">
+<script type="text/javascript" src="./js/index.js"></script>
 
-<body>
-        <div id="grid"></div>
-        <ul id="context-menu">
-            <li id="addRow">addRow</li>
-            <li id="editRow">editRow</li>
-            <li id="removeRow">removeRow</li>
-        </ul>
-        <div id="notification"></div>
-        <div id="popup"></div>
-        <script id="field-template" type="text/x-kendo-template">
-            <ul>
-                #for(var i=0;i < data.length;i++){#
-                <li><label><input type="checkbox" checked="checked:#: !data.hidden #">#= data[i].field#</label></li>
-                #}#
-            </ul>
-        </script>
-</body>
-</html>
+<div id="grid"></div>
+<ul id="context-menu">
+    <li id="addRow">addRow</li>
+    <li id="editRow">editRow</li>
+    <li id="removeRow">removeRow</li>
+</ul>
+<div id="notification"></div>
+<div id="popup"></div>
+<script id="field-template" type="text/x-kendo-template">
+    <ul>
+        #for(var i=0;i < data.length;i++){#
+        <li><label><input type="checkbox" checked="checked:#: !data.hidden #">#= data[i].field#</label></li>
+        #}#
+    </ul>
+</script>

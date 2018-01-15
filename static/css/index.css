@@ -1,0 +1,37 @@
+.k-grid td {
+    white-space:nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.k-menu {
+    color:red;
+}
+.k-menu .k-state-hover{
+    background-color: transparent;
+}
+.k-menu .k-state-hover>.k-link {
+    background-color:transparent!important;
+    /*background-image: none!important;*/
+    color:red
+}
+#popup ul {
+    width: 120px;
+    height: 500px;
+    overflow-y: auto;
+    background: #fff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+#popup ul>li {
+    -ms-text-overflow: ellipsis;
+    text-overflow: ellipsis;
+    white-space:nowrap;
+    overflow:hidden;
+}
+.k-column-btn {
+    position: absolute;
+    left:5px;
+    top:36px;
+}
+.k-detail-cell .k-grid-header {
+    display: none;
+}

@@ -88,6 +88,9 @@ wss.on('connection', function connection(ws, req) {
                     break;
                 case 'destroy':
             }
+        }else if(msg.hasOwnProperty('super_id')){
+            console.log(1)
+            ws.send(JSON.stringify({id:msg.id,data:[]}))
         }else{
             switch (msg.type){
                 case 'read':

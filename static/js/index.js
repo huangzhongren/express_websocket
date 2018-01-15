@@ -1,46 +1,4 @@
-
-
 $(function(){
-    if(typeof WebSocket === 'undefined'){
-        $('#grid').html('该应用需要websocket支持，请升级您的浏览器。')
-        return
-    }
-    //实例化websocket
-    var ws = new WebSocket('ws://localhost:8080');
-    //链接websocket时绑定grid
-    ws.onopen = function(){
-        //向远程服务器发送请求，拉取数据，返回一个promise,支持callback参数
-        $('#grid').data('kendoGrid').dataSource.fetch(function(){
-            // console.log(this.data())
-        });
-    }
-    window.onbeforeunload = function(){
-        ws.close();
-    }
-    function send(ws,request,callback){
-        if(ws.readyState!==1){
-            alert('socket 断开链接，请尝试重新链接');
-            return;
-        }
-        //Assign unique id to the request. Will use that to distinguish the response.
-        request.id = kendo.guid();
-
-        //监听message事件得到后台返回
-        ws.addEventListener("message", function(e) {
-            var result = JSON.parse(e.data);
-            //Check if the response is for the current request
-            if (result.id === request.id) {
-                ws.removeEventListener("message", arguments.callee);
-                if(result.type==='read'&&typeof callback === 'function'){
-                    callback(result.data);
-                }
-            }
-        });
-        //发送数据到服务器
-        ws.send(JSON.stringify(request));
-    }
-
-
 
     $("#notification").kendoNotification({
         width: "100%",
@@ -54,7 +12,7 @@ $(function(){
         sortable: true,
         columns: [
             { field: "client", title: "client" },
-            { field: "notes", title: "notes" },
+            { field: "notes", title: "notes"},
             { field: "dt", title: "dt" },
             { field: "tm", title: "tm" },
             { command:'destroy',width:100}
@@ -62,7 +20,8 @@ $(function(){
         toolbar: [{template:'<a href="\\#" class="k-button" onclick="cus_addRow()">add new record</a>'}
             ,"destroy"
             ,{template:'<a href="\\#" class="k-button" onclick="cus_saveChanges()">save changes</a>'}
-            ,"cancel"],
+            ,"cancel"
+        ,{template:'<span class="addrow"></span>'}],
         detailInit: detailInit,
         dataSource: {
             // Handle the push event to display notifications when push updates arrive
@@ -89,44 +48,48 @@ $(function(){
             transport: {
                 push: function(options) {
                     //服务器推送数据时，监听message事件
-                    ws.addEventListener("message", function(e) {
-                        var result = JSON.parse(e.data);
-                        //检查推送类型，执行响应的回调函数
-                        if (result.type === "push-update") {
-                            options.pushUpdate(result);
-                        } else if (result.type === "push-destroy") {
-                            options.pushDestroy(result);
-                        } else if (result.type === "push-create") {
-                            options.pushCreate(result);
-                        }
-                    });
+                    // ws.addEventListener("message", function(e) {
+                    //     var result = JSON.parse(e.data);
+                    //     //检查推送类型，执行响应的回调函数
+                    //     if (result.type === "push-update") {
+                    //         options.pushUpdate(result);
+                    //     } else if (result.type === "push-destroy") {
+                    //         options.pushDestroy(result);
+                    //     } else if (result.type === "push-create") {
+                    //         options.pushCreate(result);
+                    //     }
+                    // });
                 },
                 //向后台发送read请求
                 read: function(options) {
                     var request = { type: "read" };
-                    send(ws, request, function(result) {
+                    websocketApi.send(request, function(result) {
                         options.success(result);
                     });
                 },
                 //向后台发送update请求
                 update: function(options) {
                     var request = { type: "update", data: [options.data] };
-                    send(ws, request, options.success);
+                    websocketApi.send(request, options.success);
                 },
                 //向后台发送create请求
                 create: function(options) {
                     var request = { type: "create", data: [options.data] };
-                    send(ws, request, options.success);
+                    websocketApi.send(request, options.success);
                 },
                 //向后台发送destroy请求
                 destroy: function(options) {
                     var request = { type: "destroy", data: [options.data] };
-                    send(ws, request, options.success);
+                    websocketApi.send(request, options.success);
                 }
 
             }
         },
         pageable: true,
+        dataBound: function(){
+            var rows = this.tbody.children('.k-master-row');
+            this.expandRow(rows)
+        }
     });
     var grid = $('#grid').data('kendoGrid');
     $(element).on('dblclick','tbody>tr>td',function(){
@@ -134,17 +97,42 @@ $(function(){
     })
     $(element).on('blur','tbody>tr>td',function(){
         grid.closeCell($(this));
-    })
+    });
+    $('.addrow').kendoButton({
+        icon:'plus',
+        click:function(){
+            grid.addRow({})
+        }
+    });
+    var timer = setInterval(function(){
+        if(connected){
+            clearInterval(timer);
+            grid.dataSource.fetch(function(){
+                console.log('success read')
+            })
+        }
+    },200);
     //二级表格初始化
     function detailInit(e) {
         var parent_id = e.data.id;
-        e.detailRow.append('<span class="k-column-btn"></span>');
+        console.log(parent_id)
+        // e.detailRow.append('<span class="k-column-btn"></span>');
         var detailele = $("<div/>").appendTo(e.detailCell).kendoGrid({
             dataSource: {
                 transport: {
                     read: function(options) {
                         var request = {type:"read",super_id:parent_id};
-                        send(ws,request,options.success)
+                        websocketApi.send(request,options.success)
+                    }
+                },
+                schema:{
+                    model:{
+                        id:"_id",
+                        fields:{
+                            "_id":{editable:false,nullable:true},
+                            "notes":{type:'string'},
+                            "color":{type:'string'}
+                        }
                     }
                 },
                 pageSize: 5,
@@ -163,85 +151,83 @@ $(function(){
             scrollable: true,
             // toolbar:[{template:'<a href="\\#" class="k-button grid-column-menu fa fa-columns" onclick="cus_columnMenu()">manage columns</a>'},'create'],
             columns: [
-                { field: "client", title: "client" },
-                { field: "bond", title: "bond" },
-                { field: "cusip", title: "cusip" },
-                { field: "of", title: "of" },
-                { field: "cap_charge", title: "cap_charge" },
-                { field: "in_global_port", title: "in_global_port" },
-                { field: "px_type", title: "px_type" },
-                { field: "bid", title: "bid" },
-                { field: "bidder", title: "bidder" },
-                { field: "result", title: "result" },
-                { field: "talk", title: "talk" },
-                { field: "color", title: "color" },
-                { field: "notes", title: "notes" },
-                { field: "trdstk", title: "trdstk" },
-                { field: "cvr", title: "cvr" },
-                { field: "bestbid", title: "bestbid" },
-                { field: "bestpx", title: "bestpx" },
-                { field: "ask", title: "ask" },
-                { field: "bwic_result", title: "bwic_result" },
-                { field: "calpx", title: "calpx" },
-                { field: "md", title: "md" },
-                { field: "wal", title: "wal" },
-                { field: "yld", title: "yld" },
-                { field: "nspd", title: "nspd" },
-                { field: "espd", title: "espd" },
-                { field: "jspd", title: "jspd" },
-                { field: "cpnspd", title: "cpnspd" },
-                { field: "vintage", title: "vintage" },
-                { field: "number_of_assets", title: "number_of_assets" },
-                { field: "tranche_bal", title: "tranche_bal" },
-                { field: "factor", title: "factor" },
-                { field: "cpn", title: "cpn" },
-                { field: "cpn_typ", title: "cpn_typ" },
-                { field: "bond_credit_type", title: "bond_credit_type" },
-                { field: "px_last", title: "px_last" },
-                { field: "fitch", title: "fitch" },
-                { field: "mdy", title: "mdy" },
-                { field: "sp", title: "sp" },
-                { field: "dbrs", title: "dbrs" },
-                { field: "kbra", title: "kbra" },
-                { field: "morningstart", title: "morningstart" },
-                { field: "int_shrtfll_bond", title: "int_shrtfll_bond" },
-                { field: "int_expect", title: "int_expect" },
-                { field: "int_shrtfll", title: "int_shrtfll" },
-                { field: "senior_most_with_int_shrtfll", title: "senior_most_with_int_shrtfll" },
-                { field: "senior_most_ce", title: "senior_most_ce" },
-                { field: "senior_most_int_shrtfll_pct", title: "senior_most_int_shrtfll_pct" },
-                { field: "ce", title: "ce" },
-                { field: "thickness", title: "thickness" },
-                { field: "ssfa_detach_point", title: "ssfa_detach_point" },
-                { field: "defeased_pct", title: "defeased_pct" },
-                { field: "def_adj_ce", title: "def_adj_ce" },
-                { field: "ce_after_ara", title: "ce_after_ara" },
-                { field: "non_recov_amt", title: "non_recov_amt" },
-                { field: "dlq30", title: "dlq30" },
-                { field: "dlq60", title: "dlq60" },
-                { field: "dlq90", title: "dlq90" },
-                { field: "fcls", title: "fcls" },
-                { field: "reo", title: "reo" },
-                { field: "matured_nonperf_amt", title: "matured_nonperf_amt" },
-                { field: "dbu", title: "dbu" },
-                { field: "dba", title: "dba" },
-                { field: "dbe", title: "dbe" },
-                { field: "spec_svc_pct", title: "spec_svc_pct" },
-                { field: "prop_type_top_1", title: "prop_type_top_1" },
-                { field: "prop_type_top_2", title: "prop_type_top_2" },
-                { field: "prop_type_top_3", title: "prop_type_top_3" },
-                { field: "geo_1st_msa", title: "geo_1st_msa" },
-                { field: "geo_2nd_msa", title: "geo_2nd_msa" },
-                { field: "geo_3rd_msa", title: "geo_3rd_msa" },
-                { field: "spec_svc", title: "spec_svc" },
-                { field: "ssfa_secur_risk_wt_factor", title: "ssfa_secur_risk_wt_factor" },
-                { field: "flt_spread", title: "flt_spread" }
+                { field: "client", title: "client",width:80 },
+                { field: "bond", title: "bond",width:80 },
+                { field: "cusip", title: "cusip" ,width:80},
+                { field: "of", title: "of" ,width:80},
+                { field: "cap_charge", title: "cap_charge",width:80 },
+                { field: "in_global_port", title: "in_global_port" ,width:80},
+                { field: "px_type", title: "px_type",width:80 },
+                { field: "bid", title: "bid",width:80},
+                { field: "bidder", title: "bidder",width:80 },
+                { field: "result", title: "result",width:80 },
+                { field: "talk", title: "talk",width:80 },
+                { field: "color", title: "color" ,width:80},
+                { field: "notes", title: "notes",template:"<p class='tooltip' title='#: notes#'>#: notes #</p>" ,width:80},
+                { field: "trdstk", title: "trdstk",width:80 },
+                { field: "cvr", title: "cvr" ,width:80},
+                { field: "bestbid", title: "bestbid" ,width:80},
+                { field: "bestpx", title: "bestpx",width:80 },
+                { field: "ask", title: "ask" ,width:80},
+                { field: "bwic_result", title: "bwic_result",width:80 },
+                { field: "calpx", title: "calpx",width:80 },
+                { field: "md", title: "md",width:80 },
+                { field: "wal", title: "wal",width:80 },
+                { field: "yld", title: "yld" ,width:80},
+                { field: "nspd", title: "nspd" ,width:80},
+                { field: "espd", title: "espd",width:80 },
+                { field: "jspd", title: "jspd",width:80 },
+                { field: "cpnspd", title: "cpnspd",width:80 },
+                { field: "vintage", title: "vintage",width:80 },
+                { field: "number_of_assets", title: "number_of_assets",width:80 },
+                { field: "tranche_bal", title: "tranche_bal",width:80 },
+                { field: "factor", title: "factor" ,width:80},
+                { field: "cpn", title: "cpn",width:80 },
+                { field: "cpn_typ", title: "cpn_typ",width:80 },
+                { field: "bond_credit_type", title: "bond_credit_type",width:80 },
+                { field: "px_last", title: "px_last",width:80 },
+                { field: "fitch", title: "fitch",width:80 },
+                { field: "mdy", title: "mdy" ,width:80},
+                { field: "sp", title: "sp",width:80 },
+                { field: "dbrs", title: "dbrs" ,width:80},
+                { field: "kbra", title: "kbra" ,width:80},
+                { field: "morningstart", title: "morningstart" ,width:80},
+                { field: "int_shrtfll_bond", title: "int_shrtfll_bond",width:80 },
+                { field: "int_expect", title: "int_expect",width:80 },
+                { field: "int_shrtfll", title: "int_shrtfll" ,width:80},
+                { field: "senior_most_with_int_shrtfll", title: "senior_most_with_int_shrtfll",width:80 },
+                { field: "senior_most_ce", title: "senior_most_ce",width:80 },
+                { field: "senior_most_int_shrtfll_pct", title: "senior_most_int_shrtfll_pct",width:80 },
+                { field: "ce", title: "ce",width:80 },
+                { field: "thickness", title: "thickness",width:80 },
+                { field: "ssfa_detach_point", title: "ssfa_detach_point",width:80 },
+                { field: "defeased_pct", title: "defeased_pct",width:80 },
+                { field: "def_adj_ce", title: "def_adj_ce" ,width:80},
+                { field: "ce_after_ara", title: "ce_after_ara",width:80 },
+                { field: "non_recov_amt", title: "non_recov_amt",width:80 },
+                { field: "dlq30", title: "dlq30",width:80 },
+                { field: "dlq60", title: "dlq60" ,width:80},
+                { field: "dlq90", title: "dlq90" ,width:80},
+                { field: "fcls", title: "fcls" ,width:80},
+                { field: "reo", title: "reo" ,width:80},
+                { field: "matured_nonperf_amt", title: "matured_nonperf_amt",width:80 },
+                { field: "dbu", title: "dbu",width:80 },
+                { field: "dba", title: "dba",width:80 },
+                { field: "dbe", title: "dbe",width:80 },
+                { field: "spec_svc_pct", title: "spec_svc_pct",width:80 },
+                { field: "prop_type_top_1", title: "prop_type_top_1",width:80 },
+                { field: "prop_type_top_2", title: "prop_type_top_2",width:80 },
+                { field: "prop_type_top_3", title: "prop_type_top_3",width:80 },
+                { field: "geo_1st_msa", title: "geo_1st_msa",width:80 },
+                { field: "geo_2nd_msa", title: "geo_2nd_msa",width:80 },
+                { field: "geo_3rd_msa", title: "geo_3rd_msa" ,width:80},
+                { field: "spec_svc", title: "spec_svc" ,width:80},
+                { field: "ssfa_secur_risk_wt_factor", title: "ssfa_secur_risk_wt_factor",width:80 },
+                { field: "flt_spread", title: "flt_spread",width:80 },
+                { field: "notesWithColor", title: "notesWithColor",template:"<span>#: color+notes #</span>",width:80}
             ],
             dataBound: function() {
                 var that = this;
-                $.each(this.columns, function(index) {
-                    that.autoFitColumn(index);
-                })
             }
         });
         $('#popup').kendoPopup({
@@ -262,37 +248,7 @@ $(function(){
                popup.open()
             }
         })
-
-        // e.detailRow.find('.k-i-columns').kendoMenu({
-        //     dataSource:[{
-        //         items:menuDs
-        //     }],
-        //     openOnClick: true,
-        //     closeOnClick: false,
-        //     open: function () {
-        //         var selector;
-        //         // deselect hidden columns
-        //         $.each(detailGrid.columns, function () {
-        //             console.log(this)
-        //             if (this.hidden) {
-        //                 selector = "input[data-field='" + this.field + "']";
-        //                 $(selector).prop("checked", false);
-        //             }
-        //         });
-        //     },
-        //     select: function (e) {
-        //         // ignore click on top-level menu button
-        //         if ($(e.item).parent().filter("div").length) return;
-        //
-        //         var input = $(e.item).find("input.check");
-        //         var field = $(input).data("field");
-        //         if ($(input).is(":checked")) {
-        //             detailGrid.showColumn(field);
-        //         } else {
-        //             detailGrid.hideColumn(field);
-        //         }
-        //     }
-        // })
+        e.detailRow.find('.tooltip').kendoTooltip()
     }
 
     window.cus_addRow = function(){
